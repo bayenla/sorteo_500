@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Sorteo 1–500 Avanzado</title>
+<style>
+body { font-family: Arial; padding:20px; background:#f7f7f7; }
+h1 { margin-bottom:10px; }
+#tabla { border-collapse: collapse; margin-top:20px; }
+td {
+    width:35px; height:35px; border:1px solid #ddd;
+    text-align:center; cursor:pointer; user-select:none; font-weight:bold;
+    transition:0.2s;
+}
+td:hover { background:#e6e6e6; }
+td.selected { background:#4CAF50; color:white; }
+td.blocked { background:#ff4d4d; color:white; cursor:not-allowed; opacity:0.8; }
+input { padding:5px; margin:5px 0; width:200px; }
+button { padding:8px 12px; margin-top:5px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<h1>🎟 Sorteo 1–500 Avanzado</h1>
+
+<div>
+    <label>Nombre:</label><br>
+    <input type="text" id="nombre"><br>
+    <label>Teléfono:</label><br>
+    <input type="text" id="telefono"><br>
+    <label>Correo:</label><br>
+    <input type="email" id="correo"><br>
+    <button onclick="registrar()">Registrar</button>
+    <button onclick="limpiarSeleccion()">Limpiar selección</button>
+</div>
+
+<table id="tabla"></table>
+
+<script>
+const MAX_NUMEROS = 5;
+const tabla = document.getElementById("tabla");
+const WEBAPP_URL = "AQUI_PONES_LA_URL_DE_TU_WEB_APP"; // Pon tu URL de Web App
+
+// Generar tabla 1–500
+let num = 1;
+for (let fila=0; fila<25; fila++){
+    let tr = document.createElement("tr");
+    for (let col=0; col<20; col++){
+        if (num>500) break;
+        let td = document.createElement("td");
+        td.textContent = num;
+        td.onclick = () => {
+            if (!td.classList.contains("blocked")){
+                td.classList.toggle("selected");
+            }
+        };
+        tr.appendChild(td);
+        num++;
+    }
+    tabla.appendChild(tr);
+}
+
+// Limpiar selección
+function limpiarSeleccion(){
+    document.querySelectorAll(".selected").forEach(td=>td.classList.remove("selected"));
+}
+
+// Registrar participante
+function registrar(){
+    const nombre = document.getElementById("nombre").value.trim();
+    const telefono = document.getElementById("telefono").value.trim();
+    const correo = document.getElementById("correo").value.trim();
+    const seleccion = Array.from(document.querySelectorAll(".selected")).map(td=>Number(td.textContent));
+
+    if (!nombre || !telefono || seleccion.length===0){
+        alert("Completa nombre, teléfono y selecciona al menos un número.");
+        return;
+    }
+    if (seleccion.length>MAX_NUMEROS){
+        alert(`Máximo ${MAX_NUMEROS} números por participante.`);
+        return;
+    }
+
+    fetch("https://script.google.com/macros/s/AKfycbzKoi6VLfWGstA3xaRBXeDZ_-4IeeLkcDxvQYJr9lbtGc5Oa4NvZqBBTftfvyf4NUj9/exec", {
+        method:"POST",
+        body: JSON.stringify({ nombre, telefono, correo, numeros: seleccion.join(", ") })
+    })
+    .then(res=>res.json())
+    .then(data=>{
+        if(data.result==="success"){
+            actualizarBloqueados();
+            limpiarSeleccion();
+            document.getElementById("nombre").value="";
+            document.getElementById("telefono").value="";
+            document.getElementById("correo").value="";
+            alert("Registro guardado correctamente.");
+        }else{
+            alert("Error al registrar: "+data.error);
+        }
+    })
+    .catch(err=>alert("Error al conectar con Google Sheets: "+err));
+}
+
+// Actualizar números bloqueados desde Google Sheets
+function actualizarBloqueados(){
+    fetch(WEBAPP_URL+"?action=get") // Web App debe manejar GET para enviar registros
+    .then(res=>res.json())
+    .then(data=>{
+        if(data.result==="success"){
+            const bloqueados = new Set();
+            data.registros.forEach(r=>{
+                r.numeros.split(",").forEach(n=>bloqueados.add(Number(n.trim())));
+            });
+            document.querySelectorAll("td").forEach(td=>{
+                const n = Number(td.textContent);
+                td.classList.remove("blocked");
+                if(bloqueados.has(n)) td.classList.add("blocked");
+            });
+        }
+    })
+    .catch(err=>console.log("Error actualizando bloqueados:", err));
+}
+
+// Actualizar bloqueados cada 5 segundos
+setInterval(actualizarBloqueados,5000);
+actualizarBloqueados();
+</script>
+
+</body>
+</html>
